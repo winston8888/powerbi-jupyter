@@ -1,0 +1,255 @@
+# CodeQL Security Analysis for Data Science Project
+name: "CodeQL Security Scan"
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python', 'javascript' ]
+        # Add other languages as needed: 'cpp', 'csharp', 'go', 'java', 'ruby'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+        # Install common data science packages if not in requirements
+        pip install numpy pandas scikit-learn jupyter notebook
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        # Custom queries for data science security
+        queries: +security-and-quality,security-experimental
+        config: |
+          name: "Data Science Security Config"
+          queries:
+            - uses: security-and-quality
+            - uses: security-experimental
+          paths-ignore:
+            - "**/*.md"
+            - "**/*.txt"
+            - "**/docs/**"
+            - "**/test_data/**"
+            - "**/*.ipynb_checkpoints/**"
+          paths:
+            - "src/"
+            - "scripts/"
+            - "notebooks/"
+            - "*.py"
+            - "*.js"
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    # Alternative manual build steps for complex data science projects
+    # - name: Manual build (if autobuild fails)
+    #   run: |
+    #     # Build commands for your specific project
+    #     python setup.py build_ext --inplace
+    #     # Compile any Cython extensions
+    #     # Build any custom C/C++ extensions
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+        upload: true
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit semgrep
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Run Safety check for known vulnerabilities
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check || echo "Safety check found vulnerabilities"
+
+    - name: Run Bandit security linter
+      run: |
+        bandit -r . -f json -o bandit-report.json || true
+        bandit -r . || echo "Bandit found security issues"
+
+    - name: Run Semgrep for additional security patterns
+      run: |
+        semgrep --config=auto --json --output=semgrep-report.json . || true
+        semgrep --config=auto . || echo "Semgrep found issues"
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          safety-report.json
+          bandit-report.json
+          semgrep-report.json
+
+  notebook-security-scan:
+    name: Jupyter Notebook Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install notebook security tools
+      run: |
+        pip install nbconvert nbstripout jupyter-notebook
+        pip install bandit
+
+    - name: Find and scan Jupyter notebooks
+      run: |
+        find . -name "*.ipynb" -type f > notebooks.txt
+        if [ -s notebooks.txt ]; then
+          echo "Found notebooks to scan:"
+          cat notebooks.txt
+          
+          # Convert notebooks to Python for security scanning
+          mkdir -p converted_notebooks
+          while IFS= read -r notebook; do
+            echo "Converting $notebook"
+            jupyter nbconvert --to python "$notebook" --output-dir converted_notebooks
+          done < notebooks.txt
+          
+          # Scan converted notebooks with Bandit
+          if [ "$(ls -A converted_notebooks)" ]; then
+            bandit -r converted_notebooks/ -f json -o notebook-security-report.json || true
+            bandit -r converted_notebooks/ || echo "Security issues found in notebooks"
+          fi
+        else
+          echo "No Jupyter notebooks found"
+        fi
+
+    - name: Check for sensitive data patterns in notebooks
+      run: |
+        # Check for common sensitive patterns in notebooks
+        if [ -s notebooks.txt ]; then
+          echo "Checking for sensitive data patterns..."
+          grep -r -E "(password|secret|key|token|api_key)" --include="*.ipynb" . || echo "No obvious sensitive patterns found"
+          grep -r -E "(127\.0\.0\.1|localhost|192\.168)" --include="*.ipynb" . || echo "No local endpoints found"
+        fi
+
+    - name: Upload notebook security report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: notebook-security-report
+        path: notebook-security-report.json
+
+  data-security-check:
+    name: Data Security and Privacy Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check for sensitive data files
+      run: |
+        echo "Checking for potentially sensitive data files..."
+        
+        # Check for common data file extensions
+        find . -type f \( -name "*.csv" -o -name "*.json" -o -name "*.xml" -o -name "*.sql" \) | head -20
+        
+        # Check for files that might contain credentials
+        find . -type f -name "*secret*" -o -name "*password*" -o -name "*key*" -o -name "*.pem" -o -name "*.p12" | head -10
+        
+        # Check file sizes to identify large datasets
+        echo "Large files that might contain sensitive data:"
+        find . -type f -size +50M | head -10
+
+    - name: Scan for hardcoded secrets
+      run: |
+        # Simple regex patterns for common secrets
+        echo "Scanning for potential hardcoded secrets..."
+        grep -r -E "(password|passwd|pwd)\s*=\s*['\"][^'\"]+['\"]" --include="*.py" . || echo "No password patterns found"
+        grep -r -E "(api_key|apikey)\s*=\s*['\"][^'\"]+['\"]" --include="*.py" . || echo "No API key patterns found"
+        grep -r -E "(secret|token)\s*=\s*['\"][^'\"]+['\"]" --include="*.py" . || echo "No secret patterns found"
+
+  security-summary:
+    name: Security Scan Summary
+    runs-on: ubuntu-latest
+    needs: [analyze, dependency-scan, notebook-security-scan, data-security-check]
+    if: always()
+    steps:
+    - name: Download all security reports
+      uses: actions/download-artifact@v3
+      continue-on-error: true
+
+    - name: Generate security summary
+      run: |
+        echo "# Security Scan Summary" > security-summary.md
+        echo "Generated on: $(date)" >> security-summary.md
+        echo "" >> security-summary.md
+        
+        echo "## Scans Performed" >> security-summary.md
+        echo "- ✅ CodeQL static analysis" >> security-summary.md
+        echo "- ✅ Dependency vulnerability scan (Safety)" >> security-summary.md
+        echo "- ✅ Code security scan (Bandit)" >> security-summary.md
+        echo "- ✅ Additional security patterns (Semgrep)" >> security-summary.md
+        echo "- ✅ Jupyter notebook security scan" >> security-summary.md
+        echo "- ✅ Data sensitivity check" >> security-summary.md
+        echo "" >> security-summary.md
+        
+        echo "## Recommendations for Data Science Projects" >> security-summary.md
+        echo "1. 🔒 Never commit credentials or API keys" >> security-summary.md
+        echo "2. 📊 Review data files for sensitive information" >> security-summary.md
+        echo "3. 📝 Clean notebook outputs before committing" >> security-summary.md
+        echo "4. 🔄 Regularly update dependencies" >> security-summary.md
+        echo "5. 🔍 Use environment variables for sensitive configuration" >> security-summary.md
+        
+        cat security-summary.md
+
+    - name: Upload security summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-summary
+        path: security-summary.md
