@@ -186,6 +186,45 @@ jobs:
         name: notebook-security-report
         path: notebook-security-report.json
 
+  powerbi-security-check:
+    name: Power BI Security Check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check for Power BI credentials and connections
+      run: |
+        echo "Checking for Power BI security issues..."
+        
+        # Check for hardcoded Power BI connection strings
+        echo "Scanning for Power BI connection strings..."
+        find . -type f \( -name "*.py" -o -name "*.ipynb" -o -name "*.json" \) -exec grep -l -i "powerbi\|power.bi" {} \; || echo "No Power BI references found"
+        
+        # Check for authentication tokens or keys
+        echo "Checking for authentication patterns..."
+        grep -r -E "(client_secret|client_id|tenant_id|access_token|refresh_token)" --include="*.py" --include="*.ipynb" --include="*.json" . || echo "No auth patterns found"
+        
+        # Check for Azure AD app registrations
+        echo "Checking for Azure AD configurations..."
+        grep -r -E "(azure.*ad|aad|\.onmicrosoft\.com)" --include="*.py" --include="*.ipynb" . || echo "No Azure AD patterns found"
+        
+        # Check for workspace IDs or dataset IDs that might be hardcoded
+        echo "Checking for hardcoded Power BI IDs..."
+        grep -r -E "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" --include="*.py" --include="*.ipynb" . || echo "No UUID patterns found"
+
+    - name: Check for sensitive configuration files
+      run: |
+        echo "Checking for configuration files that might contain secrets..."
+        find . -name "*.env" -o -name ".env*" -o -name "config.json" -o -name "settings.json" | head -10
+        
+        # Check if any of these files contain sensitive data
+        for file in $(find . -name "*.env" -o -name ".env*" -o -name "config.json" -o -name "settings.json" 2>/dev/null); do
+          if [ -f "$file" ]; then
+            echo "Found config file: $file"
+            # Don't print contents, just check if it exists
+          fi
+        done
   data-security-check:
     name: Data Security and Privacy Check
     runs-on: ubuntu-latest
