@@ -156,7 +156,7 @@ jobs:
 
     - name: Install notebook security tools
       run: |
-        pip install nbconvert nbstripout jupyter-notebook
+        pip install nbconvert nbstripout jupyter notebook
         pip install bandit
 
     - name: Find and scan Jupyter notebooks
