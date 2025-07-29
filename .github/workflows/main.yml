@@ -118,7 +118,7 @@ jobs:
 
     - name: Run Safety check for known vulnerabilities
       run: |
-        safety scan  --output html --save-as safety-report.html || true
+        safety scan  --output html --save-as html safety-report.html || true
         safety scan || echo "Safety check found vulnerabilities"
 
     - name: Run Bandit security linter
@@ -175,7 +175,7 @@ jobs:
           
           # Scan converted notebooks with Bandit
           if [ "$(ls -A converted_notebooks)" ]; then
-            bandit -r converted_notebooks/ -f json -o notebook-security-report.json || true
+            bandit -r converted_notebooks/ -f html -o notebook-security-report.html || true
             bandit -r converted_notebooks/ || echo "Security issues found in notebooks"
           fi
         else
@@ -196,7 +196,7 @@ jobs:
       if: always()
       with:
         name: notebook-security-report
-        path: notebook-security-report.json
+        path: notebook-security-report.html
 
   powerbi-security-check:
     name: Power BI Security Check
