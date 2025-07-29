@@ -118,17 +118,17 @@ jobs:
 
     - name: Run Safety check for known vulnerabilities
       run: |
-        safety check --json --output safety-report.json || true
-        safety check || echo "Safety check found vulnerabilities"
+        safety scan  --output html --save-as safety-report.html || true
+        safety scan || echo "Safety check found vulnerabilities"
 
     - name: Run Bandit security linter
       run: |
-        bandit -r . -f json -o bandit-report.json || true
+        bandit -r . -f html -o bandit-report.html || true
         bandit -r . || echo "Bandit found security issues"
 
     - name: Run Semgrep for additional security patterns
       run: |
-        semgrep --config=auto --json --output=semgrep-report.json . || true
+        semgrep --config=auto --sarif --output=semgrep-report.sarif . || true
         semgrep --config=auto . || echo "Semgrep found issues"
 
     - name: Upload security reports
@@ -137,9 +137,9 @@ jobs:
       with:
         name: security-reports
         path: |
-          safety-report.json
-          bandit-report.json
-          semgrep-report.json
+          safety-report.html
+          bandit-report.html
+          semgrep-report.sarif
 
   notebook-security-scan:
     name: Jupyter Notebook Security Scan
