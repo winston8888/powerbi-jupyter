@@ -187,8 +187,13 @@ jobs:
     # - name: Scan converted notebooks with Snyk
     #   uses: actions/checkout@master
 
-    - run: echo ${{ steps.convertNotebooks.outputs.HAS_NOTEBOOK }}
-    
+    - run: echo ${{ steps.convertNotebooks.outputs.has_notebooks }}
+    - uses: snyk/actions/setup@master
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+        
     - name: Run Snyk to check for vulnerabilities
       if: steps.convertNotebooks.outputs.has_notebooks == 'true' 
       uses: snyk/actions/python@master
