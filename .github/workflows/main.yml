@@ -189,18 +189,29 @@ jobs:
 
     - run: echo ${{ steps.convertNotebooks.outputs.has_notebooks }}
     - uses: snyk/actions/setup@master
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.13'
-        
-    - name: Run Snyk to check for vulnerabilities
-      if: steps.convertNotebooks.outputs.has_notebooks == 'true' 
-      uses: snyk/actions/python@master
+    
+    - name: 'Run Gitleaks Scan'
+        # Use the official Gitleaks Action
+      uses: gitleaks/gitleaks-action@v2
       env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      with:
-        args: --severity-threshold=high
+        # If you have a Gitleaks config file, you can specify its path here.
+        # GITLEAKS_CONFIG_PATH: ${{ github.workspace }}/.gitleaks.toml
+        
+        # This variable tells Gitleaks where to upload its report as a build artifact.
+        # This report will contain any found secrets.
+        GITLEAKS_REPORT_PATH: ${{ github.workspace }}/gitleaks-report.json
+        
+        # The GITHUB_TOKEN is automatically created by Actions and is required for the action
+        # to integrate with your repository (e.g., for reporting).
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    # - name: Run Snyk to check for vulnerabilities
+    #   if: steps.convertNotebooks.outputs.has_notebooks == 'true' 
+    #   uses: snyk/actions/python@master
+    #   env:
+    #     SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    #   with:
+    #     args: --severity-threshold=high
         
         #   if [ "$(ls -A converted_notebooks)" ]; then
         #     bandit -r converted_notebooks/ -f html -o notebook-security-report.html || true
