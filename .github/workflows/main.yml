@@ -160,6 +160,7 @@ jobs:
         pip install bandit
 
     - name: Find and scan Jupyter notebooks
+      id: convertNotebooks
       run: |
         find . -name "*.ipynb" -type f > notebooks.txt
         if [ -s notebooks.txt ]; then
@@ -175,12 +176,34 @@ jobs:
           
           # Scan converted notebooks with Bandit
           if [ "$(ls -A converted_notebooks)" ]; then
+            echo "true" >> $HAS_NOTEBOOK
             bandit -r converted_notebooks/ -f html -o notebook-security-report.html || true
             bandit -r converted_notebooks/ || echo "Security issues found in notebooks"
           fi
         else
           echo "No Jupyter notebooks found"
         fi
+
+    # - name: Scan converted notebooks with Snyk
+    #   uses: actions/checkout@master
+
+    - run: echo ${{ steps.convertNotebooks.outputs.HAS_NOTEBOOK }}
+    
+    - name: Run Snyk to check for vulnerabilities
+      if: ${{ steps.convertNotebooks.outputs.HAS_NOTEBOOK }}
+      uses: snyk/actions/python@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+        
+        #   if [ "$(ls -A converted_notebooks)" ]; then
+        #     bandit -r converted_notebooks/ -f html -o notebook-security-report.html || true
+        #     bandit -r converted_notebooks/ || echo "Security issues found in notebooks"
+        #   fi
+        # else
+        #   echo "No Jupyter notebooks found"
+        # fi
 
     - name: Check for sensitive data patterns in notebooks
       run: |
