@@ -211,7 +211,7 @@ jobs:
           curl -Lo ./snyk "https://github.com/snyk/cli/releases/latest/download/snyk-linux"
           chmod +x ./snyk
           snyk auth ${{ secrets.SNYK_TOKEN }}
-          snyk test --all-projects -d
+          snyk test --all-projects --json | snyk-to-html -o results-code.html
 
     #   if: steps.convertNotebooks.outputs.has_notebooks == 'true' 
     #   uses: snyk/actions/python@master
@@ -242,7 +242,10 @@ jobs:
       if: always()
       with:
         name: notebook-security-report
-        path: notebook-security-report.html
+        path: |
+          notebook-security-report.html
+          results-code.html
+          gitleaks-report.json
 
   powerbi-security-check:
     name: Power BI Security Check
