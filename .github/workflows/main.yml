@@ -211,7 +211,7 @@ jobs:
           curl -Lo ./snyk "https://github.com/snyk/cli/releases/latest/download/snyk-linux"
           chmod +x ./snyk
           snyk auth ${{ secrets.SNYK_TOKEN }}
-          snyk test --all-projects
+          snyk test --all-projects -d
 
     #   if: steps.convertNotebooks.outputs.has_notebooks == 'true' 
     #   uses: snyk/actions/python@master
