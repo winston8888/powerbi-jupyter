@@ -207,7 +207,7 @@ jobs:
         
     - name: Run Snyk to check for vulnerabilities
       run: |
-          # npm install -g snyk
+          npm install 
           curl -Lo ./snyk "https://github.com/snyk/cli/releases/latest/download/snyk-linux"
           chmod +x ./snyk
           snyk auth ${{ secrets.SNYK_TOKEN }}
